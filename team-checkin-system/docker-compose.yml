@@ -1,0 +1,43 @@
+version: "3.9"
+
+services:
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=dynamodb,apigateway,lambda,cognito
+      - DEFAULT_REGION=us-east-1
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - ./localstack:/tmp/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - DYNAMO_ENDPOINT=http://localstack:4566
+      - AWS_REGION=us-east-1
+      - JWKS_URL=http://auth:3001/.well-known/jwks.json
+      - CORS_ORIGINS=http://localhost:3000
+      - NODE_ENV=development
+    depends_on:
+      - localstack
+      - auth
+
+  auth:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.auth
+    ports:
+      - "3001:3001"
+    environment:
+      - AUTH_PORT=3001
+      - AUTH_KEY_ID=team-checkin-system-auth-key

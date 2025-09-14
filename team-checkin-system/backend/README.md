@@ -1,126 +1,258 @@
-# Team Check-in System - Backend
+# Team Check-in System - Backend API
 
-A secure Node.js/Express backend for managing team check-ins with JWT authentication.
+A Node.js + Express + TypeScript backend API for team check-ins with JWT authentication and DynamoDB storage.
+
+## 🏗️ Architecture
+
+- **Framework**: Node.js + Express + TypeScript
+- **Authentication**: JWT with RS256 signing
+- **Database**: DynamoDB (via LocalStack for local development)
+- **Validation**: Zod schemas
+- **Security**: Helmet, CORS, Rate limiting
+- **Logging**: Structured JSON logging
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ 
-- npm or yarn
+- Node.js 18+
+- LocalStack running (for DynamoDB)
 
 ### Installation
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+```bash
+# Install dependencies
+npm install
 
-2. **Environment Setup:**
-   ```bash
-   # Copy the example environment file
-   cp ../.env.example .env
-   
-   # Edit .env with your configuration
-   nano .env
-   ```
+# Build TypeScript
+npm run build
+```
 
-3. **Development:**
+### Development
+
+```bash
+# Start main API server (port 4000)
+npm run dev
+
+# Start auth server (port 3001) - in another terminal
+npm run auth
+
+# Initialize DynamoDB tables
+npm run init-tables
+```
+
+### Testing
+
+```bash
+# Health check
+curl http://localhost:4000/health
+
+# JWKS endpoint
+curl http://localhost:3001/.well-known/jwks.json
+```
+
+## 📚 API Documentation
+
+### Authentication Endpoints (Port 3001)
+
+**Signup**
+```bash
+POST /signup
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!",
+  "role": "manager" | "member"
+}
+```
+
+**Login**
+```bash
+POST /login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!"
+}
+```
+
+**JWKS (Public Keys)**
+```bash
+GET /.well-known/jwks.json
+```
+
+### Main API Endpoints (Port 4000)
+
+**Health Check**
+```bash
+GET /health
+```
+
+**Check-ins** (Manager only for POST, authenticated for GET)
+```bash
+POST /checkins
+GET /checkins
+Authorization: Bearer <token>
+```
+
+**Responses** (Member only for POST, own responses for GET)
+```bash
+POST /responses
+GET /responses/me
+Authorization: Bearer <token>
+```
+
+**Reports** (Manager only)
+```bash
+GET /reports/checkin/:checkInId
+GET /reports/checkin/user/:userId
+GET /reports/summary
+Authorization: Bearer <token>
+```
+
+## 🗄️ Database Schema
+
+### CheckIns Table
+```typescript
+{
+  id: string;           // Primary key (UUID)
+  title: string;
+  dueDate: string;      // ISO date string
+  createdBy: string;    // Manager user ID
+  createdAt: string;    // ISO timestamp
+  questions: {
+    id: string;         // UUID
+    text: string;
+  }[];
+}
+```
+
+### Responses Table
+```typescript
+{
+  id: string;           // Primary key (UUID)
+  checkInId: string;    // Foreign key to CheckIns
+  userId: string;       // User ID who submitted
+  createdAt: string;    // ISO timestamp
+  answers: {
+    questionId: string; // References question.id
+    answer: string;
+  }[];
+}
+```
+
+## 📁 Project Structure
+
+```
+src/
+├── auth/                 # Authentication server
+│   ├── server.ts        # Auth server main
+│   ├── config.ts        # Auth-specific config
+│   ├── keys.ts          # JWT key generation
+│   └── types.ts         # Auth types
+├── middlewares/         # Express middlewares
+│   ├── auth.ts          # JWT verification
+│   ├── validateRequest.ts # Zod validation
+│   └── errorHandler.ts  # Global error handling
+├── models/              # Data models
+│   ├── checkin.ts       # CheckIn CRUD operations
+│   └── response.ts      # Response CRUD operations
+├── routers/             # API routes
+│   ├── checkins.ts      # Check-in endpoints
+│   ├── responses.ts     # Response endpoints
+│   └── reports.ts       # Reporting endpoints
+├── scripts/             # Utility scripts
+│   └── init-tables.ts   # DynamoDB table setup
+├── types/               # TypeScript types
+│   ├── auth.ts          # Auth-related types
+│   └── express.d.ts     # Express augmentation
+├── utils/               # Utilities
+│   └── logger.ts        # Structured logging
+├── validators/          # Zod schemas
+│   ├── checkinValidator.ts
+│   ├── responseValidator.ts
+│   └── authValidator.ts
+├── config.ts            # Centralized configuration
+└── main.ts              # Main application entry
+```
+
+## 🧪 Testing
+
+### Manual Testing Flow
+
+1. **Start Services**
    ```bash
    # Start development server with hot reload
    npm run dev
    
    # Start auth server (in separate terminal)
    npm run auth
-   ```
-
-4. **Production:**
-   ```bash
-   # Build the project
-   npm run build
    
-   # Start production server
-   npm start
+   # Initialize Tables
+   npm run init-tables
    ```
 
-## 📁 Project Structure
+2. **Create Manager**
+   ```bash
+   curl -X POST http://localhost:3001/signup \
+     -H "Content-Type: application/json" \
+     -d '{"email":"manager@test.com","password":"Manager123!","role":"manager"}'
+   ```
 
+3. **Login and Get Token**
+   ```bash
+   curl -X POST http://localhost:3001/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"manager@test.com","password":"Manager123!"}'
+   ```
+
+4. **Create Check-in**
+   ```bash
+   curl -X POST http://localhost:4000/checkins \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <token>" \
+     -d '{
+       "title": "Weekly Check-in",
+       "dueDate": "2024-12-31T23:59:59Z",
+       "questions": [{"text": "How was your week?"}]
+     }'
+   ```
+
+5. **Create Member and Submit Response**
+   ```bash
+   # Create member
+   curl -X POST http://localhost:3001/signup \
+     -H "Content-Type: application/json" \
+     -d '{"email":"member@test.com","password":"Member123!","role":"member"}'
+   
+   # Login as member
+   curl -X POST http://localhost:3001/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"member@test.com","password":"Member123!"}'
+   
+   # Submit response
+   curl -X POST http://localhost:4000/responses \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer <member-token>" \
+     -d '{
+       "checkInId": "<checkin-id>",
+       "answers": [{"questionId": "<question-id>", "answer": "Great week!"}]
+     }'
+   ```
+
+## 🐳 Docker Integration
+
+The backend is designed to work with Docker and LocalStack:
+
+```yaml
+# docker-compose.yml (from project root)
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - DYNAMO_ENDPOINT=http://localstack:4566
+      - JWKS_URL=http://auth:3001/.well-known/jwks.json
 ```
-src/
-├── auth/           # Authentication service
-│   ├── config.ts   # Auth configuration
-│   ├── keys.ts     # JWT key management
-│   ├── server.ts   # Auth server
-│   └── types.ts    # Auth type definitions
-├── middlewares/    # Express middlewares
-│   ├── auth.ts     # JWT authentication middleware
-│   ├── errorHandler.ts
-│   └── validateRequest.ts
-├── models/         # Data models (in-memory)
-│   ├── checkin.ts
-│   └── response.ts
-├── routers/        # API route handlers
-│   ├── checkins.ts # Check-in management
-│   ├── reports.ts  # Reporting endpoints
-│   └── responses.ts # Response management
-├── types/          # TypeScript type definitions
-├── utils/          # Utility functions
-└── validators/     # Request validation schemas
-```
-
-## 🔐 Authentication
-
-The system uses JWT tokens with RS256 signing. Two user roles are supported:
-
-- **Manager**: Can create check-ins and view all responses
-- **Member**: Can submit responses and view their own responses
-
-### Auth Endpoints
-
-- `POST /signup` - Register a new user
-- `POST /login` - Authenticate and receive JWT token
-- `GET /.well-known/jwks.json` - Public key for token verification
-
-### Password Requirements
-
-- Minimum 8 characters
-- At least one uppercase letter
-- At least one lowercase letter  
-- At least one number
-- At least one special character
-
-## 📡 API Endpoints
-
-### Health Check
-- `GET /health` - Service health status
-
-### Check-ins (Manager only)
-- `POST /checkins` - Create a new check-in
-- `GET /checkins` - List all check-ins
-
-### Responses (Member only)
-- `POST /responses` - Submit a response to a check-in
-- `GET /responses/me` - View your own responses
-
-### Reports (Manager only)
-- `GET /reports/checkin/:checkInId` - Get responses for a specific check-in
-- `GET /reports/checkin/user/:userId` - Get all responses by a user
-- `GET /reports/summary` - Get summary of all check-ins and responses
-
-## ⚠️ Important Notes
-
-### Data Persistence
-**Current implementation uses in-memory storage.** All data (users, check-ins, responses) will be lost when the server restarts.
-
-### Key Management
-RSA keys are generated on server startup. In production, use persistent key storage or a key management service.
-
-## 🔧 Development
-
-### Available Scripts
-
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build TypeScript to JavaScript
-- `npm start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix ESLint issues
-- `npm run auth` - Start standalone auth server

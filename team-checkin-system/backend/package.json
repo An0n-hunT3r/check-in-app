@@ -9,7 +9,8 @@
     "start": "node dist/main.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "auth": "ts-node src/auth/server.ts"
+    "auth": "ts-node src/auth/server.ts",
+    "init-tables": "ts-node src/scripts/init-tables.ts"
   },
   "keywords": [],
   "author": "",
